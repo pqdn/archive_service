@@ -23,7 +23,7 @@ class ArchiveServiceTest extends RedisIntegrationTest {
 
         Archive archive = archiveResponse.getArchive();
         assertFalse(archiveResponse.getArchive().getHashOrigin().isBlank());
-        assertFalse(archiveResponse.getArchive().getZipBytes().length > 0);
+        assertTrue(archiveResponse.getArchive().getZipBytes().length > 0);
 
         ArchiveResponse archiveResponse2 = archiveService.archive(fileName, content);
         assertFalse(archiveResponse2.isNewArchive());
