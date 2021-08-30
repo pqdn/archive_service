@@ -6,14 +6,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import ru.babanin.archive_service.exceptions.AbsentRequestFIleException;
 import ru.babanin.archive_service.exceptions.EmptyRequestFIleException;
 import ru.babanin.archive_service.model.ArchiveResponse;
+
+import java.io.ByteArrayInputStream;
 
 @Slf4j
 @RestController
@@ -22,6 +21,23 @@ public class ArchiveController {
 
     private final ArchiveService archiveService;
 
+    @GetMapping(value = "/test")
+    public ResponseEntity<?> testZipFile(@RequestParam String content) {
+        ArchiveResponse response = archiveService.archive("testFile.txt", new ByteArrayInputStream(content.getBytes()));
+
+        return ResponseEntity
+                // Использован 208 статус заместо 304, т.к.
+                // для 304 нельзя прилепить тело сообщений
+                // для 304 подразумевается, что браузер попытается использовать
+                // закешируванную версию файла со своей стороны
+                // а задании явно сказано: что нужно возвращать файл с бека из собственного кеша
+                .status(HttpStatus.OK)
+                .eTag(response.getArchive().getHashOrigin())
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header("Content-Disposition", "attachment; filename=" + "testFile" + ".zip")
+                .body(response.getArchive().getZipBytes());
+    }
+
     @SneakyThrows
     @PostMapping(value = "/zipFile")
     public ResponseEntity<?> zipFile(MultipartFile file) {
@@ -29,18 +45,18 @@ public class ArchiveController {
             throw new AbsentRequestFIleException();
         }
 
-        byte[] bytes = file.getBytes();
-
-        if (bytes.length == 0) {
+        if (file.getSize() == 0) {
             throw new EmptyRequestFIleException();
         }
-
 
         String fileName = file.getOriginalFilename() != null && !file.getOriginalFilename().isBlank()
                 ? file.getOriginalFilename() : file.getName();
 
-        log.info("Archive file with name={}, bytes={}", fileName, bytes.length);
-        ArchiveResponse response = archiveService.archive(fileName, bytes);
+        byte[] bytes = file.getBytes();
+        log.info("Archive file with name={}, bytes={}", fileName, file.getSize());
+
+
+        ArchiveResponse response = archiveService.archive(fileName, file.getInputStream());
 
         return ResponseEntity
                 // Использован 208 статус заместо 304, т.к.
