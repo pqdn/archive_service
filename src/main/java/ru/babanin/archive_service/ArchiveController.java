@@ -3,17 +3,17 @@ package ru.babanin.archive_service;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import ru.babanin.archive_service.exceptions.AbsentRequestFIleException;
+import ru.babanin.archive_service.exceptions.EmptyRequestFIleException;
 import ru.babanin.archive_service.model.ArchiveResponse;
-
-import java.util.concurrent.TimeUnit;
-
 
 @Slf4j
 @RestController
@@ -26,17 +26,13 @@ public class ArchiveController {
     @PostMapping(value = "/zipFile")
     public ResponseEntity<?> zipFile(MultipartFile file) {
         if (file == null) {
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body("file is absent");
+            throw new AbsentRequestFIleException();
         }
 
         byte[] bytes = file.getBytes();
 
         if (bytes.length == 0) {
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body("file empty");
+            throw new EmptyRequestFIleException();
         }
 
 
@@ -57,5 +53,19 @@ public class ArchiveController {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header("Content-Disposition", "attachment; filename=" + fileName + ".zip")
                 .body(response.getArchive().getZipBytes());
+    }
+
+
+    @ExceptionHandler({ AbsentRequestFIleException.class, EmptyRequestFIleException.class })
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public String handleException(RuntimeException ex) {
+        if (ex instanceof AbsentRequestFIleException) {
+            return "file is absent";
+        }
+
+        if (ex instanceof EmptyRequestFIleException) {
+            return "file empty";
+        }
+        throw new IllegalStateException();
     }
 }
